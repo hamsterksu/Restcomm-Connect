@@ -173,7 +173,7 @@ public abstract class AbstractMockMediaGateway extends UntypedActor {
         } else if (message instanceof JainMgcpResponseEvent) {
             response(message, sender);
         } else {
-            System.err.println("Unsupported operation !!!");
+            throw new IllegalArgumentException("Unsupported operation !!!");
         }
     }
 

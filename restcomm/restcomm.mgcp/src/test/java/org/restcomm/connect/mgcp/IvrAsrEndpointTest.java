@@ -19,6 +19,7 @@ import org.restcomm.connect.commons.dao.CollectedResult;
 import org.restcomm.connect.commons.patterns.Observe;
 import org.restcomm.connect.commons.patterns.Observing;
 import org.restcomm.connect.commons.patterns.StopObserving;
+import org.snmp4j.smi.OctetString;
 
 import java.net.URI;
 import java.util.Collections;
@@ -76,10 +77,7 @@ public class IvrAsrEndpointTest {
                 final Observing observingResponse = expectMsgClass(Observing.class);
                 assertTrue(observingResponse.succeeded());
 
-                String driver = "Google-driver";
-                long timeAfterSpeech = 10;
-
-                AsrwgsSignal asr = new AsrwgsSignal(driver, Collections.singletonList(URI.create("hello.wav")), "#", 10, 10, timeAfterSpeech, ASR_RESULT_TEXT);
+                AsrwgsSignal asr = new AsrwgsSignal("no_name_driver", Collections.singletonList(URI.create("hello.wav")), "#", 10, 10, 10, ASR_RESULT_TEXT);
                 endpoint.tell(asr, observer);
                 final IvrEndpointResponse<CollectedResult> ivrResponse = expectMsgClass(IvrEndpointResponse.class);
                 assertTrue(ivrResponse.succeeded());
@@ -121,14 +119,10 @@ public class IvrAsrEndpointTest {
                 final Observing observingResponse = expectMsgClass(Observing.class);
                 assertTrue(observingResponse.succeeded());
 
-                String driver = "Google-driver";
-                long timeAfterSpeech = 10;
-
-                AsrwgsSignal asr = new AsrwgsSignal(driver, Collections.singletonList(URI.create("hello.wav")), "#", 10, 10, timeAfterSpeech, ASR_RESULT_TEXT);
+                AsrwgsSignal asr = new AsrwgsSignal("no_name_driver", Collections.singletonList(URI.create("hello.wav")), "#", 10, 10, 10, ASR_RESULT_TEXT);
                 endpoint.tell(asr, observer);
                 final IvrEndpointResponse<CollectedResult> ivrResponse = expectMsgClass(IvrEndpointResponse.class);
                 assertFalse(ivrResponse.succeeded());
-                //assertTrue(ASR_RESULT_TEXT.equals(ivrResponse.get().getResult()));
                 String errorMessage = "jain.protocol.ip.mgcp.JainIPMgcpException: The IVR request failed with the following error code 300";
                 assertTrue(ivrResponse.cause().toString().equals(errorMessage));
                 assertTrue(ivrResponse.get() == null);
@@ -159,7 +153,8 @@ public class IvrAsrEndpointTest {
                 // Send the notification.
 
                 // TODO: extend test - 100, 101, timeout, "100 + endOfKey"
-                MgcpEvent asrsucc = AsrwgsSignal.EVENT_ASRSUCC.withParm("rc=101 asrr=" + ASR_RESULT_TEXT);
+                String asrResultTextHex = new OctetString(ASR_RESULT_TEXT).toHexString();
+                MgcpEvent asrsucc = AsrwgsSignal.EVENT_ASRSUCC.withParm("rc=101 asrr=" + asrResultTextHex);
 
                 final EventName[] events = {new EventName(AsrwgsSignal.PACKAGE_NAME, asrsucc)};
                 final Notify notify = new Notify(this, request.getEndpointIdentifier(), request.getRequestIdentifier(), events);
@@ -197,7 +192,7 @@ public class IvrAsrEndpointTest {
                 System.out.println(response.toString());
 
                 // Send the notification.
-                MgcpEvent asrFailEvent = AsrwgsSignal.EVENT_ASRFAIL.withParm("rc=300 asrr=" + ASR_RESULT_TEXT);
+                MgcpEvent asrFailEvent = AsrwgsSignal.EVENT_ASRFAIL.withParm("rc=300 asrr=");
                 final EventName[] events = {new EventName(AsrwgsSignal.PACKAGE_NAME, asrFailEvent)};
                 final Notify notify = new Notify(this, request.getEndpointIdentifier(), request.getRequestIdentifier(), events);
                 notify.setTransactionHandle((int) transactionIdPool.get());

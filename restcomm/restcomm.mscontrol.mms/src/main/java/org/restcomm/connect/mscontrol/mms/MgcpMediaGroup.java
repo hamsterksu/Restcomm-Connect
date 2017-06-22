@@ -243,13 +243,13 @@ public class MgcpMediaGroup extends MediaGroup {
 
     @SuppressWarnings("unchecked")
     protected void notification(final Object message) {
-        final IvrEndpointResponse<CollectedResult> response = (IvrEndpointResponse<CollectedResult>) message;
+        final IvrEndpointResponse response = (IvrEndpointResponse) message;
         final ActorRef self = self();
         MediaGroupResponse<CollectedResult> event = null;
         if (response.succeeded()) {
-            event = new MediaGroupResponse<CollectedResult>(response.get());
+            event = new MediaGroupResponse<>((CollectedResult)response.get());
         } else {
-            event = new MediaGroupResponse<CollectedResult>(response.cause(), response.error());
+            event = new MediaGroupResponse<>(response.cause(), response.error());
         }
         // for (final ActorRef observer : observers) {
         // observer.tell(event, self);

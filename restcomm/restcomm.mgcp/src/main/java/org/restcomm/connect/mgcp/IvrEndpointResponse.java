@@ -24,8 +24,8 @@ import org.restcomm.connect.commons.patterns.StandardResponse;
 /**
  * @author quintana.thomas@gmail.com (Thomas Quintana)
  */
-public class IvrEndpointResponse<T> extends StandardResponse<T> {
-    public IvrEndpointResponse(final T object) {
+public class IvrEndpointResponse<CollectedResult> extends StandardResponse<CollectedResult> {
+    public IvrEndpointResponse(final CollectedResult object) {
         super(object);
     }
 

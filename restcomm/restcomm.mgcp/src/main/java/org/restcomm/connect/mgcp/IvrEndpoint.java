@@ -40,6 +40,7 @@ import org.mobicents.protocols.mgcp.jain.pkg.AUPackage;
 import org.restcomm.connect.commons.dao.CollectedResult;
 import org.restcomm.connect.commons.patterns.Observe;
 import org.restcomm.connect.commons.patterns.StopObserving;
+import org.snmp4j.smi.OctetString;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -122,7 +123,6 @@ public final class IvrEndpoint extends GenericEndpoint {
 
     @Override
     public void onReceive(final Object message) throws Exception {
-        System.out.println("!!! onReceive: " + message);
         final Class<?> klass = message.getClass();
         final ActorRef self = self();
         final ActorRef sender = sender();
@@ -160,7 +160,7 @@ public final class IvrEndpoint extends GenericEndpoint {
         final String error = Integer.toString(code);
         final String message = "The IVR request failed with the following error code " + error;
         final JainIPMgcpException exception = new JainIPMgcpException(message);
-        final IvrEndpointResponse<CollectedResult> response = new IvrEndpointResponse<CollectedResult>(exception);
+        final IvrEndpointResponse<CollectedResult> response = new IvrEndpointResponse<>(exception);
         for (final ActorRef observer : observers) {
             observer.tell(response, self);
         }
@@ -200,18 +200,18 @@ public final class IvrEndpoint extends GenericEndpoint {
                     if (digits == null) {
                         digits = EMPTY_STRING;
                     }
+                    resultData = new CollectedResult(digits, false);
                     // Notify the observers that the event successfully completed.
-                    final IvrEndpointResponse<String> result = new IvrEndpointResponse<>(digits);
+                    final IvrEndpointResponse<CollectedResult> result = new IvrEndpointResponse<>(resultData);
                     for (final ActorRef observer : observers) {
                         observer.tell(result, self);
                     }
                     break;
                 }
                 case 101: { // Success(partial result). ASR can received only with code 101. In this case dc = null
-                    // TODO: need to add decode
                     if (parameters.containsKey("asrr")) {
-                        // TODO: Are we need decode asrr from hex to usual String ?
-                        resultData = new CollectedResult(parameters.get("asrr"), true);
+                        String asrrHex = parameters.get("asrr");
+                        resultData = new CollectedResult(OctetString.fromHexString(asrrHex).toString(), true);
                         // Notify the observers that the event successfully completed.
                         final IvrEndpointResponse<CollectedResult> result = new IvrEndpointResponse<>(resultData);
                         for (final ActorRef observer : observers) {
