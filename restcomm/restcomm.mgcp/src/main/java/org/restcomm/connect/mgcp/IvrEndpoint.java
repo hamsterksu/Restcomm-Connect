@@ -35,11 +35,13 @@ import jain.protocol.ip.mgcp.message.parms.RequestedEvent;
 import jain.protocol.ip.mgcp.message.parms.ReturnCode;
 import jain.protocol.ip.mgcp.pkg.MgcpEvent;
 import jain.protocol.ip.mgcp.pkg.PackageName;
+import org.apache.commons.lang.StringUtils;
 import org.mobicents.protocols.mgcp.jain.pkg.AUMgcpEvent;
 import org.mobicents.protocols.mgcp.jain.pkg.AUPackage;
 import org.restcomm.connect.commons.dao.CollectedResult;
 import org.restcomm.connect.commons.patterns.Observe;
 import org.restcomm.connect.commons.patterns.StopObserving;
+import org.snmp4j.smi.OctetString;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -72,7 +74,7 @@ public final class IvrEndpoint extends GenericEndpoint {
 
     private void sendAsr(final AsrwgsSignal message) {
         MgcpEvent event = AsrwgsSignal.REQUEST_ASRWGS.withParm(message.toString());
-        sendRequest(new EventName(AsrwgsSignal.PACKAGE_NAME, event), AsrwgsSignal.REQUESTED_EVENTS);
+        sendRequest(new EventName(PACKAGE_NAME, event), REQUESTED_EVENTS);
     }
 
     private void send(final Object message) {
@@ -201,7 +203,7 @@ public final class IvrEndpoint extends GenericEndpoint {
                         digits = EMPTY_STRING;
                     }
                     // Notify the observers that the event successfully completed.
-                    final IvrEndpointResponse<String> result = new IvrEndpointResponse<>(digits);
+                    final IvrEndpointResponse<CollectedResult> result = new IvrEndpointResponse<>(new CollectedResult(digits, false));
                     for (final ActorRef observer : observers) {
                         observer.tell(result, self);
                     }
@@ -210,8 +212,11 @@ public final class IvrEndpoint extends GenericEndpoint {
                 case 101: { // Success(partial result). ASR can received only with code 101. In this case dc = null
                     // TODO: need to add decode
                     if (parameters.containsKey("asrr")) {
-                        // TODO: Are we need decode asrr from hex to usual String ?
-                        resultData = new CollectedResult(parameters.get("asrr"), true);
+                        String asrr = parameters.get("asrr");
+                        if (!StringUtils.isEmpty(asrr)) {
+                            asrr = new OctetString(asrr).toString();
+                        }
+                        resultData = new CollectedResult(asrr, true);
                         // Notify the observers that the event successfully completed.
                         final IvrEndpointResponse<CollectedResult> result = new IvrEndpointResponse<>(resultData);
                         for (final ActorRef observer : observers) {

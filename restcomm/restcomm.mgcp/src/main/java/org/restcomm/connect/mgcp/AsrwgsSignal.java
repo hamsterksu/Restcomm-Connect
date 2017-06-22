@@ -1,10 +1,7 @@
 package org.restcomm.connect.mgcp;
 
-import jain.protocol.ip.mgcp.message.parms.EventName;
-import jain.protocol.ip.mgcp.message.parms.RequestedAction;
-import jain.protocol.ip.mgcp.message.parms.RequestedEvent;
 import jain.protocol.ip.mgcp.pkg.MgcpEvent;
-import jain.protocol.ip.mgcp.pkg.PackageName;
+import org.mobicents.protocols.mgcp.jain.pkg.AUMgcpEvent;
 import org.restcomm.connect.commons.annotations.concurrency.Immutable;
 import org.snmp4j.smi.OctetString;
 
@@ -17,18 +14,7 @@ import java.util.List;
 @Immutable
 public class AsrwgsSignal {
 
-    public static final PackageName PACKAGE_NAME = PackageName.factory("ASR", 166);
-    public static final MgcpEvent REQUEST_ASRWGS = MgcpEvent.factory("asrwgs", 166 + 3);
-    public static final MgcpEvent EVENT_ASRSUCC = MgcpEvent.factory("asrsucc", 166 + 2);
-    public static final MgcpEvent EVENT_ASRFAIL = MgcpEvent.factory("asrfail", 166 + 1);
-
-    public static final RequestedEvent[] REQUESTED_EVENTS = new RequestedEvent[2];
-
-    static {
-        final RequestedAction[] action = new RequestedAction[]{RequestedAction.NotifyImmediately};
-        REQUESTED_EVENTS[0] = new RequestedEvent(new EventName(PACKAGE_NAME, EVENT_ASRSUCC), action);
-        REQUESTED_EVENTS[1] = new RequestedEvent(new EventName(PACKAGE_NAME, EVENT_ASRFAIL), action);
-    }
+    public static final MgcpEvent REQUEST_ASRWGS = MgcpEvent.factory("asr", AUMgcpEvent.END_SIGNAL + 1);
 
     private static final String SPACE_CHARACTER = " ";
 
@@ -64,10 +50,6 @@ public class AsrwgsSignal {
                 }
             }
         }
-
-        if (buffer.length() > 0)
-            buffer.append(SPACE_CHARACTER);
-        buffer.append("rgst=Other").append(SPACE_CHARACTER).append("rgsf=XML");
 
         if (driver != null) {
             if (buffer.length() > 0)

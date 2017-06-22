@@ -25,7 +25,7 @@ public class AsrwgsSignalTest {
 
     @Before
     public void init() {
-        driver = "no_name driver";
+        driver = "no_name_driver";
         initialPrompts = Collections.singletonList(URI.create("hello.wav"));
         endInputKey = "#";
         maximumRecTimer = 10L;
@@ -36,7 +36,7 @@ public class AsrwgsSignalTest {
 
     @Test
     public void testFormatting() {
-        String expectedResult = "ip=hello.wav rgst=Other rgsf=XML dr=no_name driver eik=# mrt=10 wit=10 pst=5 hw=57:61:69:74";
+        String expectedResult = "ip=hello.wav dr=no_name_driver eik=# mrt=10 wit=10 pst=5 hw=57:61:69:74";
 
         AsrwgsSignal asrSignal = new AsrwgsSignal(driver, initialPrompts, endInputKey, maximumRecTimer, waitingInputTimer,
                 timeAfterSpeech, hotWords);
@@ -52,7 +52,7 @@ public class AsrwgsSignalTest {
            add(URI.create("hello.wav"));
            add(URI.create("world.wav"));
         }};
-        String expectedResult = "ip=hello.wav,world.wav rgst=Other rgsf=XML dr=no_name driver eik=# mrt=10 wit=10 pst=5 hw=57:61:69:74";
+        String expectedResult = "ip=hello.wav,world.wav dr=no_name_driver eik=# mrt=10 wit=10 pst=5 hw=57:61:69:74";
 
         AsrwgsSignal asrSignal = new AsrwgsSignal(driver, initialPrompts, endInputKey, maximumRecTimer, waitingInputTimer,
                 timeAfterSpeech, hotWords);

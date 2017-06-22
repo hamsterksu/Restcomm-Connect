@@ -15,6 +15,8 @@ import jain.protocol.ip.mgcp.pkg.MgcpEvent;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mobicents.protocols.mgcp.jain.pkg.AUMgcpEvent;
+import org.mobicents.protocols.mgcp.jain.pkg.AUPackage;
 import org.restcomm.connect.commons.dao.CollectedResult;
 import org.restcomm.connect.commons.patterns.Observe;
 import org.restcomm.connect.commons.patterns.Observing;
@@ -24,6 +26,7 @@ import java.net.URI;
 import java.util.Collections;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -91,6 +94,12 @@ public class IvrAsrEndpointTest {
                 assertTrue(ASR_RESULT_TEXT.equals(ivrResponse2.get().getResult()));
                 assertTrue(ivrResponse2.get().isAsr());
 
+
+                final IvrEndpointResponse<CollectedResult> ivrResponse3 = expectMsgClass(IvrEndpointResponse.class);
+                assertTrue(ivrResponse3.succeeded());
+                assertNull(ivrResponse3.get().getResult());
+                assertTrue(ivrResponse2.get().isAsr());
+
                 // Stop observing events from the IVR end point.
                 endpoint.tell(new StopObserving(observer), observer);
             }
@@ -142,6 +151,13 @@ public class IvrAsrEndpointTest {
             super();
         }
 
+        private Notify createNotify(final NotificationRequest request, int transactionId, final MgcpEvent event) {
+            final EventName[] events = {new EventName(AUPackage.AU, event)};
+            Notify notify = new Notify(this, request.getEndpointIdentifier(), request.getRequestIdentifier(), events);
+            notify.setTransactionHandle(transactionId);
+            return notify;
+        }
+
         @Override
         protected void event(final Object message, final ActorRef sender) {
             final ActorRef self = self();
@@ -159,17 +175,14 @@ public class IvrAsrEndpointTest {
                 // Send the notification.
 
                 // TODO: extend test - 100, 101, timeout, "100 + endOfKey"
-                MgcpEvent asrsucc = AsrwgsSignal.EVENT_ASRSUCC.withParm("rc=101 asrr=" + ASR_RESULT_TEXT);
-
-                final EventName[] events = {new EventName(AsrwgsSignal.PACKAGE_NAME, asrsucc)};
-                final Notify notify = new Notify(this, request.getEndpointIdentifier(), request.getRequestIdentifier(), events);
-                notify.setTransactionHandle((int) transactionIdPool.get());
+                Notify notify = createNotify(request, (int) transactionIdPool.get(), AUMgcpEvent.auoc.withParm("rc=101 asrr=" + ASR_RESULT_TEXT));
                 sender.tell(notify, self);
-                System.out.println(notify.toString());
 
-                notify.setTransactionHandle((int) transactionIdPool.get());
+                notify = createNotify(request, (int) transactionIdPool.get(), AUMgcpEvent.auoc.withParm("rc=101 asrr=" + ASR_RESULT_TEXT));
                 sender.tell(notify, self);
-                System.out.println(notify.toString());
+
+                notify = createNotify(request, (int) transactionIdPool.get(), AUMgcpEvent.auoc.withParm("rc=100"));
+                sender.tell(notify, self);
             }
         }
     }
@@ -197,8 +210,8 @@ public class IvrAsrEndpointTest {
                 System.out.println(response.toString());
 
                 // Send the notification.
-                MgcpEvent asrFailEvent = AsrwgsSignal.EVENT_ASRFAIL.withParm("rc=300 asrr=" + ASR_RESULT_TEXT);
-                final EventName[] events = {new EventName(AsrwgsSignal.PACKAGE_NAME, asrFailEvent)};
+                MgcpEvent asrFailEvent = AUMgcpEvent.auof.withParm("rc=300 asrr=" + ASR_RESULT_TEXT);
+                final EventName[] events = {new EventName(AUPackage.AU, asrFailEvent)};
                 final Notify notify = new Notify(this, request.getEndpointIdentifier(), request.getRequestIdentifier(), events);
                 notify.setTransactionHandle((int) transactionIdPool.get());
                 sender.tell(notify, self);
