@@ -35,6 +35,7 @@ import jain.protocol.ip.mgcp.message.parms.RequestedEvent;
 import jain.protocol.ip.mgcp.message.parms.ReturnCode;
 import jain.protocol.ip.mgcp.pkg.MgcpEvent;
 import jain.protocol.ip.mgcp.pkg.PackageName;
+import org.apache.commons.lang.StringUtils;
 import org.mobicents.protocols.mgcp.jain.pkg.AUMgcpEvent;
 import org.mobicents.protocols.mgcp.jain.pkg.AUPackage;
 import org.restcomm.connect.commons.dao.CollectedResult;
@@ -73,7 +74,7 @@ public final class IvrEndpoint extends GenericEndpoint {
 
     private void sendAsr(final AsrwgsSignal message) {
         MgcpEvent event = AsrwgsSignal.REQUEST_ASRWGS.withParm(message.toString());
-        sendRequest(new EventName(AsrwgsSignal.PACKAGE_NAME, event), AsrwgsSignal.REQUESTED_EVENTS);
+        sendRequest(new EventName(PACKAGE_NAME, event), REQUESTED_EVENTS);
     }
 
     private void send(final Object message) {
@@ -160,7 +161,7 @@ public final class IvrEndpoint extends GenericEndpoint {
         final String error = Integer.toString(code);
         final String message = "The IVR request failed with the following error code " + error;
         final JainIPMgcpException exception = new JainIPMgcpException(message);
-        final IvrEndpointResponse<CollectedResult> response = new IvrEndpointResponse<>(exception);
+        final IvrEndpointResponse response = new IvrEndpointResponse(exception);
         for (final ActorRef observer : observers) {
             observer.tell(response, self);
         }
@@ -189,7 +190,6 @@ public final class IvrEndpoint extends GenericEndpoint {
             final MgcpEvent event = observedEvents[0].getEventIdentifier();
             final Map<String, String> parameters = parse(event.getParms());
             final int code = Integer.parseInt(parameters.get("rc"));
-            CollectedResult resultData = null;
             switch (code) {
                 case 326: // No digits
                 case 327: // No speech
@@ -200,9 +200,8 @@ public final class IvrEndpoint extends GenericEndpoint {
                     if (digits == null) {
                         digits = EMPTY_STRING;
                     }
-                    resultData = new CollectedResult(digits, false);
-                    // Notify the observers that the event successfully completed.
-                    final IvrEndpointResponse<CollectedResult> result = new IvrEndpointResponse<>(resultData);
+                    final IvrEndpointResponse result = new IvrEndpointResponse(
+                            new CollectedResult(digits, AsrwgsSignal.REQUEST_ASRWGS.getName().equals(event.getName())));
                     for (final ActorRef observer : observers) {
                         observer.tell(result, self);
                     }
@@ -210,10 +209,12 @@ public final class IvrEndpoint extends GenericEndpoint {
                 }
                 case 101: { // Success(partial result). ASR can received only with code 101. In this case dc = null
                     if (parameters.containsKey("asrr")) {
-                        String asrrHex = parameters.get("asrr");
-                        resultData = new CollectedResult(OctetString.fromHexString(asrrHex).toString(), true);
+                        String asrr = parameters.get("asrr");
+                        if (!StringUtils.isEmpty(asrr)) {
+                            asrr = OctetString.fromHexString(asrr).toString();
+                        }
                         // Notify the observers that the event successfully completed.
-                        final IvrEndpointResponse<CollectedResult> result = new IvrEndpointResponse<>(resultData);
+                        final IvrEndpointResponse result = new IvrEndpointResponse(new CollectedResult(asrr, true));
                         for (final ActorRef observer : observers) {
                             observer.tell(result, self);
                         }

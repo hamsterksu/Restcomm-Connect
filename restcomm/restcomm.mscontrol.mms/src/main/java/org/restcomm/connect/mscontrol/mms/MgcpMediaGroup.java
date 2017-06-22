@@ -245,15 +245,12 @@ public class MgcpMediaGroup extends MediaGroup {
     protected void notification(final Object message) {
         final IvrEndpointResponse response = (IvrEndpointResponse) message;
         final ActorRef self = self();
-        MediaGroupResponse<CollectedResult> event = null;
+        MediaGroupResponse<CollectedResult> event;
         if (response.succeeded()) {
-            event = new MediaGroupResponse<>((CollectedResult)response.get());
+            event = new MediaGroupResponse<>(response.get());
         } else {
             event = new MediaGroupResponse<>(response.cause(), response.error());
         }
-        // for (final ActorRef observer : observers) {
-        // observer.tell(event, self);
-        // }
         if (originator != null)
             this.originator.tell(event, self);
         ivrInUse = false;
