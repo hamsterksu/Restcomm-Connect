@@ -200,6 +200,7 @@ public class MgcpMediaGroup extends MediaGroup {
     protected void collect(final Object message) {
         final ActorRef self = self();
         final Collect request = (Collect) message;
+        String driver = request.getDriver();
 
         Object signal;
         if (request.type() == Collect.Type.DTMF) {
@@ -217,10 +218,6 @@ public class MgcpMediaGroup extends MediaGroup {
             this.lastEvent = AUMgcpEvent.aupc;
         } else {
             this.lastEvent = AsrwgsSignal.REQUEST_ASRWGS;
-            //String path = configuration.subset("runtime-settings").getString("prompts-uri");
-
-            // TODO: temporary stub. Need change on default driver later.
-            String driver = "Google_driver_stub";
             signal = new AsrwgsSignal(driver, request.prompts(), request.endInputKey(), request.timeout(), request.timeout(),
                     request.timeout(), request.getHints());
         }

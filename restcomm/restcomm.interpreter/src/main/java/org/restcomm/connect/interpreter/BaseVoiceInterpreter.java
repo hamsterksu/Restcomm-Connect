@@ -1597,7 +1597,8 @@ public abstract class BaseVoiceInterpreter extends UntypedActor {
             }
 
             // Start gathering.
-            final Collect collect = new Collect(type, gatherPrompts, null, timeout, finishOnKey, numberOfDigits, lang, hints);
+            String defaultDriver = configuration.subset("runtime-settings").getString("default-driver");
+            final Collect collect = new Collect(defaultDriver, type, gatherPrompts, null, timeout, finishOnKey, numberOfDigits, lang, hints);
             call.tell(collect, source);
             // Some clean up.
             gatherChildren = null;
