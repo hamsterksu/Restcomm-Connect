@@ -200,6 +200,7 @@ public class MgcpMediaGroup extends MediaGroup {
     protected void collect(final Object message) {
         final ActorRef self = self();
         final Collect request = (Collect) message;
+        String driver = request.getDriver();
 
         Object signal;
         if (request.type() == Collect.Type.DTMF) {
@@ -217,10 +218,6 @@ public class MgcpMediaGroup extends MediaGroup {
             this.lastEvent = AUMgcpEvent.aupc;
         } else {
             this.lastEvent = AsrwgsSignal.REQUEST_ASRWGS;
-            //String path = configuration.subset("runtime-settings").getString("prompts-uri");
-
-            // TODO: temporary stub. Need change on default driver later.
-            String driver = "Google_driver_stub";
             signal = new AsrwgsSignal(driver, request.prompts(), request.endInputKey(), request.timeout(), request.timeout(),
                     request.timeout(), request.getHints());
         }
@@ -246,17 +243,14 @@ public class MgcpMediaGroup extends MediaGroup {
 
     @SuppressWarnings("unchecked")
     protected void notification(final Object message) {
-        final IvrEndpointResponse<CollectedResult> response = (IvrEndpointResponse<CollectedResult>) message;
+        final IvrEndpointResponse response = (IvrEndpointResponse) message;
         final ActorRef self = self();
-        MediaGroupResponse<CollectedResult> event = null;
+        MediaGroupResponse<CollectedResult> event;
         if (response.succeeded()) {
-            event = new MediaGroupResponse<CollectedResult>(response.get());
+            event = new MediaGroupResponse<>(response.get());
         } else {
-            event = new MediaGroupResponse<CollectedResult>(response.cause(), response.error());
+            event = new MediaGroupResponse<>(response.cause(), response.error());
         }
-        // for (final ActorRef observer : observers) {
-        // observer.tell(event, self);
-        // }
         if (originator != null)
             this.originator.tell(event, self);
         ivrInUse = false;

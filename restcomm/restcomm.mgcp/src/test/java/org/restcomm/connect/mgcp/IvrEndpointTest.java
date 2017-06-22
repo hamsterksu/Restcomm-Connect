@@ -97,7 +97,7 @@ public class IvrEndpointTest {
                 announcements.add(URI.create("hello.wav"));
                 final Play play = new Play(announcements, 1);
                 endpoint.tell(play, observer);
-                final IvrEndpointResponse<String> ivrResponse = expectMsgClass(IvrEndpointResponse.class);
+                final IvrEndpointResponse ivrResponse = expectMsgClass(IvrEndpointResponse.class);
                 assertTrue(ivrResponse.succeeded());
                 // Stop observing events from the IVR end point.
                 endpoint.tell(new StopObserving(observer), observer);
@@ -133,9 +133,9 @@ public class IvrEndpointTest {
                 builder.addPrompt(URI.create("hello.wav"));
                 final PlayCollect playCollect = builder.build();
                 endpoint.tell(playCollect, observer);
-                final IvrEndpointResponse<CollectedResult> ivrResponse = expectMsgClass(IvrEndpointResponse.class);
+                final IvrEndpointResponse ivrResponse = expectMsgClass(IvrEndpointResponse.class);
                 assertTrue(ivrResponse.succeeded());
-                assertTrue("1".equals(ivrResponse.get()));
+                assertTrue("1".equals((ivrResponse.get()).getResult()));
                 // Stop observing events from the IVR end point.
                 endpoint.tell(new StopObserving(observer), observer);
             }
@@ -170,7 +170,7 @@ public class IvrEndpointTest {
                 announcements.add(URI.create("hello.wav"));
                 final Play play = new Play(announcements, 1);
                 endpoint.tell(play, observer);
-                final IvrEndpointResponse<String> ivrResponse = expectMsgClass(IvrEndpointResponse.class);
+                final IvrEndpointResponse ivrResponse = expectMsgClass(IvrEndpointResponse.class);
                 assertFalse(ivrResponse.succeeded());
                 // Stop observing events from the IVR end point.
                 endpoint.tell(new StopObserving(observer), observer);

@@ -46,10 +46,12 @@ public final class Collect {
     private final int numberOfDigits;
     private final String lang;
     private final String hints;
+    private final String driver;
 
-    public Collect(final Type type, final List<URI> prompts, final String pattern, final int timeout, final String endInputKey,
+    public Collect(String driver,final Type type, final List<URI> prompts, final String pattern, final int timeout, final String endInputKey,
             final int numberOfDigits, final String lang, final String hints) {
         super();
+        this.driver = driver;
         this.type = type;
         this.prompts = prompts;
         this.pattern = pattern;
@@ -58,6 +60,10 @@ public final class Collect {
         this.numberOfDigits = numberOfDigits;
         this.lang = lang;
         this.hints = hints;
+    }
+
+    public String getDriver() {
+        return driver;
     }
 
     public Type type() {
