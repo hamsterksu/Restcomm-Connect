@@ -40,6 +40,7 @@ public class IvrAsrEndpointTest {
     private static final String ASR_RESULT_TEXT = "Super_text";
     private static final String ASR_RESULT_TEXT_HEX = new OctetString(ASR_RESULT_TEXT).toHexString();
     private static final String HINTS = "hint 1, hint 2";
+    public static final String DEFAULT_LANG = "en-US";
 
     private static ActorSystem system;
 
@@ -82,7 +83,7 @@ public class IvrAsrEndpointTest {
                 final Observing observingResponse = expectMsgClass(Observing.class);
                 assertTrue(observingResponse.succeeded());
 
-                AsrwgsSignal asr = new AsrwgsSignal("no_name_driver", Collections.singletonList(URI.create("hello.wav")), "#", 10, 10, 10, HINTS);
+                AsrwgsSignal asr = new AsrwgsSignal("no_name_driver", "en-US", Collections.singletonList(URI.create("hello.wav")), "#", 10, 10, 10, HINTS);
                 endpoint.tell(asr, observer);
                 final IvrEndpointResponse ivrResponse = expectMsgClass(IvrEndpointResponse.class);
                 assertTrue(ivrResponse.succeeded());
@@ -130,7 +131,7 @@ public class IvrAsrEndpointTest {
                 final Observing observingResponse = expectMsgClass(Observing.class);
                 assertTrue(observingResponse.succeeded());
 
-                AsrwgsSignal asr = new AsrwgsSignal("no_name_driver", Collections.singletonList(URI.create("hello.wav")), "#", 10, 10, 10, HINTS);
+                AsrwgsSignal asr = new AsrwgsSignal("no_name_driver", "en-US", Collections.singletonList(URI.create("hello.wav")), "#", 10, 10, 10, HINTS);
                 endpoint.tell(asr, observer);
                 final IvrEndpointResponse ivrResponse = expectMsgClass(IvrEndpointResponse.class);
                 assertFalse(ivrResponse.succeeded());
@@ -169,7 +170,7 @@ public class IvrAsrEndpointTest {
                 String driver = "Google-driver";
                 long timeAfterSpeech = 10;
 
-                AsrwgsSignal asr = new AsrwgsSignal(driver, Collections.singletonList(URI.create("hello.wav")), "#", 10, 10, timeAfterSpeech, ASR_RESULT_TEXT);
+                AsrwgsSignal asr = new AsrwgsSignal(driver, DEFAULT_LANG, Collections.singletonList(URI.create("hello.wav")), "#", 10, 10, timeAfterSpeech, ASR_RESULT_TEXT);
                 endpoint.tell(asr, observer);
                 final IvrEndpointResponse ivrResponse = expectMsgClass(IvrEndpointResponse.class);
                 assertTrue(ivrResponse.succeeded());
