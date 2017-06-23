@@ -25,8 +25,9 @@ public class AsrwgsSignal {
     private final long waitingInputTimer;
     private final long timeAfterSpeech;
     private final String hotWords;
+    private final String lang;
 
-    public AsrwgsSignal(String driver, List<URI> initialPrompts, String endInputKey, long maximumRecTimer, long waitingInputTimer,
+    public AsrwgsSignal(String driver, String lang, List<URI> initialPrompts, String endInputKey, long maximumRecTimer, long waitingInputTimer,
                         long timeAfterSpeech, String hotWords) {
         this.driver = driver;
         this.initialPrompts = initialPrompts;
@@ -35,6 +36,7 @@ public class AsrwgsSignal {
         this.waitingInputTimer = waitingInputTimer;
         this.timeAfterSpeech = timeAfterSpeech;
         this.hotWords = hotWords;
+        this.lang = lang;
     }
 
     @Override
@@ -51,11 +53,14 @@ public class AsrwgsSignal {
             }
         }
 
-        if (driver != null) {
-            if (buffer.length() > 0)
-                buffer.append(SPACE_CHARACTER);
-            buffer.append("dr=").append(driver);
-        }
+        if (buffer.length() > 0)
+            buffer.append(SPACE_CHARACTER);
+        buffer.append("dr=").append(driver);
+
+        if (buffer.length() > 0)
+            buffer.append(SPACE_CHARACTER);
+        buffer.append("ln=").append(lang);
+
         if (endInputKey != null) {
             if (buffer.length() > 0)
                 buffer.append(SPACE_CHARACTER);
@@ -64,17 +69,17 @@ public class AsrwgsSignal {
         if (maximumRecTimer > 0) {
             if (buffer.length() > 0)
                 buffer.append(SPACE_CHARACTER);
-            buffer.append("mrt=").append(maximumRecTimer);
+            buffer.append("mrt=").append(maximumRecTimer * 10);
         }
         if (waitingInputTimer > 0) {
             if (buffer.length() > 0)
                 buffer.append(SPACE_CHARACTER);
-            buffer.append("wit=").append(waitingInputTimer);
+            buffer.append("wit=").append(waitingInputTimer * 10);
         }
         if (timeAfterSpeech > 0) {
             if (buffer.length() > 0)
                 buffer.append(SPACE_CHARACTER);
-            buffer.append("pst=").append(timeAfterSpeech);
+            buffer.append("pst=").append(timeAfterSpeech * 10);
         }
         if (hotWords != null) {
             if (buffer.length() > 0)
