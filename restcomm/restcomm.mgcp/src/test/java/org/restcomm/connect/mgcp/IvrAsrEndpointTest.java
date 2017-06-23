@@ -17,7 +17,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.mobicents.protocols.mgcp.jain.pkg.AUMgcpEvent;
 import org.mobicents.protocols.mgcp.jain.pkg.AUPackage;
-import org.restcomm.connect.commons.dao.CollectedResult;
 import org.restcomm.connect.commons.patterns.Observe;
 import org.restcomm.connect.commons.patterns.Observing;
 import org.restcomm.connect.commons.patterns.StopObserving;
@@ -27,7 +26,6 @@ import java.net.URI;
 import java.util.Collections;
 
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -61,7 +59,6 @@ public class IvrAsrEndpointTest {
     @Test
     @SuppressWarnings("unchecked")
     public void testSuccessfulAsrScenario() {
-        //public void testSuccessfulAsrScenarioWithDigits() {
         new JavaTestKit(system) {
             {
                 final ActorRef observer = getRef();
@@ -145,7 +142,6 @@ public class IvrAsrEndpointTest {
     @Test
     @SuppressWarnings("unchecked")
     public void testEndSignal() {
-        //public void testSuccessfulAsrScenarioWithDigits() {
         new JavaTestKit(system) {
             {
                 final ActorRef observer = getRef();
@@ -167,10 +163,7 @@ public class IvrAsrEndpointTest {
                 final Observing observingResponse = expectMsgClass(Observing.class);
                 assertTrue(observingResponse.succeeded());
 
-                String driver = "Google-driver";
-                long timeAfterSpeech = 10;
-
-                AsrwgsSignal asr = new AsrwgsSignal(driver, DEFAULT_LANG, Collections.singletonList(URI.create("hello.wav")), "#", 10, 10, timeAfterSpeech, ASR_RESULT_TEXT);
+                AsrwgsSignal asr = new AsrwgsSignal("no_name_driver", DEFAULT_LANG, Collections.singletonList(URI.create("hello.wav")), "#", 10, 10, 10, ASR_RESULT_TEXT);
                 endpoint.tell(asr, observer);
                 final IvrEndpointResponse ivrResponse = expectMsgClass(IvrEndpointResponse.class);
                 assertTrue(ivrResponse.succeeded());

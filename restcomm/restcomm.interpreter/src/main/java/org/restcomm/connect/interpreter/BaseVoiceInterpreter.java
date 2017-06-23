@@ -1533,26 +1533,12 @@ public abstract class BaseVoiceInterpreter extends UntypedActor {
             // parse attribute "input"
             Attribute typeAttr = verb.attribute(GatherAttributes.ATTRIBUTE_INPUT);
             Collect.Type defaultType = Collect.Type.DTMF;
-            Collect.Type type = null;
-            if (typeAttr != null) {
-                type = parseAttrInput(typeAttr.value(), defaultType);
-            } else {
-                type = defaultType;
-                logger.warning("Illegal or unsupported attribute value: '{}'. Will be use default value '{}'", typeAttr,
-                        GatherAttributes.ATTRIBUTE_INPUT);
-            }
+            Collect.Type type = parseAttrInput(typeAttr, defaultType);
 
             // parse attribute "language"
             Attribute langAttr = verb.attribute(GatherAttributes.ATTRIBUTE_LANGUAGE);
             String defaultLang = SupportedAsrLanguages.DEFAULT_LANGUAGE;
-            String lang;
-            if (langAttr != null) {
-                lang = parseAttrLanguage(langAttr.value(), defaultLang);
-            } else {
-                lang = defaultLang;
-                logger.warning("Illegal or unsupported attribute value: '{}'. Will be use default value '{}'", langAttr,
-                        SupportedAsrLanguages.DEFAULT_LANGUAGE);
-            }
+            String lang = parseAttrLanguage(langAttr, defaultLang);
 
             // parse attribute "hints"
             String hints = null;
@@ -1607,7 +1593,19 @@ public abstract class BaseVoiceInterpreter extends UntypedActor {
             collectedDigits = new StringBuffer("");
         }
 
-        private Collect.Type parseAttrInput(String attributeValue, Collect.Type defaultType) {
+        private Collect.Type parseAttrInput(Attribute typeAttr, Collect.Type defaultType) {
+            Collect.Type type;
+            if (typeAttr != null && !typeAttr.value().isEmpty()) {
+                type = defineInputAttrValue(typeAttr.value(), defaultType);
+            } else {
+                type = defaultType;
+                logger.warning("Illegal or unsupported attribute value: '{}'. Will be use default value '{}'", typeAttr,
+                        GatherAttributes.ATTRIBUTE_INPUT);
+            }
+            return type;
+        }
+
+        private Collect.Type defineInputAttrValue(String attributeValue, Collect.Type defaultType) {
             for (Collect.Type type : Collect.Type.values()) {
                 if (type.name().equalsIgnoreCase(attributeValue)) {
                     return type;
@@ -1616,11 +1614,17 @@ public abstract class BaseVoiceInterpreter extends UntypedActor {
             return defaultType;
         }
 
-
-        private String parseAttrLanguage(String attributeValue, String defaultLanguage) {
-            return SupportedAsrLanguages.languages.contains(attributeValue) ? attributeValue : defaultLanguage;
+        private String parseAttrLanguage(Attribute langAttr, String defaultLang) {
+            String lang;
+            if (langAttr != null && !langAttr.value().isEmpty()) {
+                lang = SupportedAsrLanguages.languages.contains(langAttr.value()) ? langAttr.value() : defaultLang;
+            } else {
+                lang = defaultLang;
+                logger.warning("Illegal or unsupported attribute value: '{}'. Will be use default value '{}'", langAttr,
+                        SupportedAsrLanguages.DEFAULT_LANGUAGE);
+            }
+            return lang;
         }
-
     }
 
     private abstract class CallbackGatherAction extends AbstractGatherAction {
@@ -1633,9 +1637,7 @@ public abstract class BaseVoiceInterpreter extends UntypedActor {
                                        final Attribute callbackAttr, final Attribute methodAttr,
                                        final List<NameValuePair> parameters) {
             if (callbackAttr == null) {
-                // TODO: remove stub later
-                int stub_int = 11101;
-                final Notification notification = notification(ERROR_NOTIFICATION, stub_int, "Callback attribute is null");
+                final Notification notification = notification(ERROR_NOTIFICATION, 11101, "Callback attribute is null");
                 notifications.addNotification(notification);
                 sendMail(notification);
                 final StopInterpreter stop = new StopInterpreter();
@@ -1644,9 +1646,7 @@ public abstract class BaseVoiceInterpreter extends UntypedActor {
             }
             String action = callbackAttr.value();
             if (action == null || action.isEmpty()) {
-                // TODO: remove stub later
-                int stub_int = 11101;
-                final Notification notification = notification(ERROR_NOTIFICATION, stub_int, "Callback attribute value is null or empty");
+                final Notification notification = notification(ERROR_NOTIFICATION, 11101, "Callback attribute value is null or empty");
                 notifications.addNotification(notification);
                 sendMail(notification);
                 final StopInterpreter stop = new StopInterpreter();
