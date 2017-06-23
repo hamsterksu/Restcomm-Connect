@@ -192,8 +192,10 @@ public final class Call extends UntypedActor {
     private SipURI from;
     private javax.servlet.sip.URI to;
     // custom headers for SIP Out https://bitbucket.org/telestax/telscale-restcomm/issue/132/implement-twilio-sip-out
+    //headers defined in rcml
     private Map<String, String> rcmlHeaders;
-    private Map<String, ArrayList<String>> headers;
+    //headers populated by extension to modify existing headers and add new headers
+    private Map<String, ArrayList<String>> extensionHeaders;
     private String username;
     private String password;
     private CreateCallType type;
@@ -302,10 +304,10 @@ public final class Call extends UntypedActor {
         if (statusCallback != null) {
             downloader = downloader();
         }
-        this.rcmlHeaders = new HashMap<String, String>();
-        this.headers = new HashMap<String, ArrayList<String>>();
+
+        this.extensionHeaders = new HashMap<String, ArrayList<String>>();
         if(headers != null){
-            this.headers = headers;
+            this.extensionHeaders = headers;
         }
 
         // States for the FSM
@@ -835,6 +837,7 @@ public final class Call extends UntypedActor {
             imsProxyAddress = request.getImsProxyAddress();
             imsProxyPort = request.getImsProxyPort();
             String toHeaderString = to.toString();
+            rcmlHeaders = new HashMap<String, String>();
             if (toHeaderString.indexOf('?') != -1) {
                 // custom headers parsing for SIP Out
                 // https://bitbucket.org/telestax/telscale-restcomm/issue/132/implement-twilio-sip-out
@@ -961,14 +964,13 @@ public final class Call extends UntypedActor {
             if(userAgent!=null){
                 invite.setHeader("User-Agent", userAgent);
             }
-
             addCustomHeadersToMap(rcmlHeaders);
             // adding custom headers for SIP Out
             // https://bitbucket.org/telestax/telscale-restcomm/issue/132/implement-twilio-sip-out
             addHeadersToMessage(invite, rcmlHeaders, "X-");
 
             //the extension headers will override any headers
-            addHeadersToMessage(invite, headers);
+            addHeadersToMessage(invite, extensionHeaders);
 
             final SipSession session = invite.getSession();
             session.setHandler("CallManager");
@@ -1000,16 +1002,6 @@ public final class Call extends UntypedActor {
             executeStatusCallback(CallbackState.INITIATED);
         }
 
-        //FIXME: duplicate code
-        private void addHeadersToMessage(SipServletRequest message, Map<String, String> rcmlHeaders, String keyPrepend) {
-
-            for (Map.Entry<String, String> entry : rcmlHeaders.entrySet()) {
-                String headerName = keyPrepend + entry.getKey();
-                String headerVal = message.getHeader(headerName);
-                message.addHeader(headerName , entry.getValue());
-            }
-        }
-
         /**
          * addCustomHeadersToMap
          */
@@ -1019,6 +1011,20 @@ public final class Call extends UntypedActor {
             if (accountId != null)
                 headers.put("RestComm-AccountSid", accountId.toString());
             headers.put("RestComm-CallSid", instanceId+"-"+id.toString());
+        }
+
+        //TODO: put this in a central place
+        private void addHeadersToMessage(SipServletRequest message, Map<String, String> headers, String keyPrepend) {
+            try {
+                for (Map.Entry<String, String> entry : headers.entrySet()) {
+                    String headerName = keyPrepend + entry.getKey();
+                    message.addHeader(headerName , entry.getValue());
+                }
+            } catch (IllegalArgumentException iae) {
+                if(logger.isErrorEnabled()) {
+                    logger.error("Exception while setting message header: "+iae.getMessage());
+                }
+            }
         }
 
         /**
@@ -1032,24 +1038,28 @@ public final class Call extends UntypedActor {
                 for (Map.Entry<String, ArrayList<String>> entry : headers.entrySet()) {
                     //check if header exists
                     String headerName = entry.getKey();
-                    String headerVal = message.getHeader(headerName);
 
-                    //FIXME: do getValue check first?
                     StringBuilder sb = new StringBuilder();
-                    //if(entry.getValue() instanceof ArrayList){
+                    if(entry.getValue() instanceof ArrayList){
                         for(String pair : entry.getValue()){
-                            logger.debug("pair="+pair);
                             sb.append(";").append(pair);
                         }
-                    //}
+                    }
                     if(logger.isDebugEnabled()) {
-                        logger.debug("headerName="+headerName+" headerVal="+headerVal+" concatValue="+sb.toString());
+                        logger.debug("headerName="+headerName+" headerVal="+message.getHeader(headerName)+" concatValue="+sb.toString());
                     }
                     if(!headerName.equalsIgnoreCase("Request-URI")){
-                        if(headerVal!=null && !headerVal.isEmpty()) {
-                            message.setHeader(headerName , headerVal+sb.toString());
-                        }else{
-                            message.addHeader(headerName , sb.toString());
+                        try {
+                            String headerVal = message.getHeader(headerName);
+                            if(headerVal!=null && !headerVal.isEmpty()) {
+                                message.setHeader(headerName , headerVal+sb.toString());
+                            }else{
+                                message.addHeader(headerName , sb.toString());
+                            }
+                        } catch (IllegalArgumentException iae) {
+                            if(logger.isErrorEnabled()) {
+                                logger.error("Exception while setting message header: "+iae.getMessage());
+                            }
                         }
                     }else{
                         //handle Request-URI

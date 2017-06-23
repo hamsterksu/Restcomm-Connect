@@ -60,9 +60,6 @@ import org.restcomm.connect.dao.entities.Client;
 import org.restcomm.connect.dao.entities.IncomingPhoneNumber;
 import org.restcomm.connect.dao.entities.Notification;
 import org.restcomm.connect.dao.entities.Registration;
-import org.restcomm.connect.extension.api.CallRequest;
-import org.restcomm.connect.extension.api.ExtensionRequest;
-import org.restcomm.connect.extension.api.ExtensionResponse;
 import org.restcomm.connect.extension.api.ExtensionType;
 import org.restcomm.connect.extension.api.IExtensionCreateCallRequest;
 import org.restcomm.connect.extension.api.RestcommExtensionException;
@@ -118,6 +115,7 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -526,47 +524,59 @@ public final class CallManager extends UntypedActor {
                     // This is a call to a registered DID (application)
                     return;
                 }
+
                 // This call is not a registered DID (application). Try to proxy out this call.
                 // log to console and to notification engine
                 String errMsg = "A Restcomm Client is trying to call a Number/DID that is not registered with Restcomm";
                 sendNotification(errMsg, 11002, "info", true);
 
-                if (isWebRTC(request)) {
-                    //This is a WebRTC client that dials out
-                    proxyThroughMediaServer(request, client, toUser);
-                    return;
-                }
+                ExtensionController ec = ExtensionController.getInstance();
+                IExtensionCreateCallRequest er = new CreateCall(fromUser, toUser, "", "", false, 0, CreateCallType.PSTN, client.getAccountSid(), null,null, null, null);
+                ec.executePreOutboundAction(er, this.extensions);
+                if (er.isAllowed()) {
+                    if (isWebRTC(request)) {
+                        //This is a WebRTC client that dials out
+                        //TODO: should we inject headers for this case?
+                        proxyThroughMediaServer(request, client, toUser);
 
-                // https://telestax.atlassian.net/browse/RESTCOMM-335
-                final String proxyURI = activeProxy;
-                final String proxyUsername = activeProxyUsername;
-                final String proxyPassword = activeProxyPassword;
-                SipURI from = null;
-                SipURI to = null;
-                boolean callToSipUri = false;
-                // proxy DID or number if the outbound proxy fields are not empty in the restcomm.xml
-                if (proxyURI != null && !proxyURI.isEmpty()) {
-//                    String destination = ((SipURI)request.getTo().getURI()).getUser();
-                    CallRequest callRequest = new CallRequest(fromUser,toUser, CreateCallType.PSTN, client.getAccountSid(), false, false);
-                    ExtensionController ec = ExtensionController.getInstance();
-                    ExtensionRequest er = new ExtensionRequest();
-                    //er.setObject(callRequest);
-                    ExtensionResponse extensionResponse = ec.executePreOutboundAction(er, this.extensions);
-                    if (extensionResponse.isAllowed()) {
-                        proxyOut(request, client, toUser, toHost, toHostIpAddress, toPort, outboundIntf, proxyURI, proxyUsername, proxyPassword, from, to, callToSipUri);
                     } else {
-                        final SipServletResponse response = request.createResponse(SC_FORBIDDEN, "Call request not allowed");
-                        response.send();
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("Call request now allowed: "+callRequest.toString());
+                        // https://telestax.atlassian.net/browse/RESTCOMM-335
+                        String proxyURI = activeProxy;
+                        String proxyUsername = activeProxyUsername;
+                        String proxyPassword = activeProxyPassword;
+                        SipURI from = null;
+                        SipURI to = null;
+                        boolean callToSipUri = false;
+
+                        if(er.getOutboundProxy()!=null && !er.getOutboundProxy().isEmpty()){
+                            proxyURI = er.getOutboundProxy();
+                        }
+                        if(er.getOutboundProxyUsername()!=null && !er.getOutboundProxyUsername().isEmpty()){
+                            proxyUsername = er.getOutboundProxyUsername();
+                        }
+                        if(er.getOutboundProxyPassword()!=null && !er.getOutboundProxyPassword().isEmpty()){
+                            proxyUsername = er.getOutboundProxyPassword();
+                        }
+                        // proxy DID or number if the outbound proxy fields are not empty in the restcomm.xml
+                        if (proxyURI != null && !proxyURI.isEmpty()) {
+                            //FIXME: not so nice to just inject headers here
+                            addHeadersToMessage(request, er.getOutboundProxyHeaders());
+                            proxyOut(request, client, toUser, toHost, toHostIpAddress, toPort, outboundIntf, proxyURI, proxyUsername, proxyPassword, from, to, callToSipUri);
+                        } else {
+                            errMsg = "Restcomm tried to proxy this call to an outbound party but it seems the outbound proxy is not configured.";
+                            sendNotification(errMsg, 11004, "warning", true);
                         }
                     }
-                    ec.executePostOutboundAction(callRequest, this.extensions);
-                    return;
                 } else {
-                    String msg = "Restcomm tried to proxy this call to an outbound party but it seems the outbound proxy is not configured.";
-                    sendNotification(errMsg, 11004, "warning", true);
+                    //Extensions didn't allow this call
+                    final SipServletResponse response = request.createResponse(SC_FORBIDDEN, "Call request not allowed");
+                    response.send();
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Call request not allowed: "+er.toString());
+                    }
                 }
+                ec.executePostOutboundAction(er, this.extensions);
+                return;
             }
         } else {
             // Client is null, check if this call is for a registered DID (application)
@@ -587,6 +597,71 @@ public final class CallManager extends UntypedActor {
                 + "cannot be found or there is application attached to that";
         sendNotification(errMsg, 11005, "error", true);
 
+    }
+
+    /**
+     * FIXME: duplicated code make into static function or something more optimized
+     * Replace headers
+     * @param SipServletRequest message
+     * @param Map<String, ArrayList<String> > headers
+     */
+    private void addHeadersToMessage(SipServletRequest message, Map<String, ArrayList<String> > headers) {
+
+        if(headers!=null) {
+            for (Map.Entry<String, ArrayList<String>> entry : headers.entrySet()) {
+                //check if header exists
+                String headerName = entry.getKey();
+
+                StringBuilder sb = new StringBuilder();
+                if(entry.getValue() instanceof ArrayList){
+                    for(String pair : entry.getValue()){
+                        sb.append(";").append(pair);
+                    }
+                }
+                if(logger.isDebugEnabled()) {
+                    logger.debug("headerName="+headerName+" headerVal="+message.getHeader(headerName)+" concatValue="+sb.toString());
+                }
+                if(!headerName.equalsIgnoreCase("Request-URI")){
+                    try {
+                        String headerVal = message.getHeader(headerName);
+                        if(headerVal!=null && !headerVal.isEmpty()) {
+                            message.setHeader(headerName , headerVal+sb.toString());
+                        }else{
+                            message.addHeader(headerName , sb.toString());
+                        }
+                    } catch (IllegalArgumentException iae) {
+                        if(logger.isErrorEnabled()) {
+                            logger.error("Exception while setting message header: "+iae.getMessage());
+                        }
+                    }
+                }else{
+                    //handle Request-URI
+                    javax.servlet.sip.URI reqURI = message.getRequestURI();
+                    if(logger.isDebugEnabled()) {
+                        logger.debug("ReqURI="+reqURI.toString()+" msgReqURI="+message.getRequestURI());
+                    }
+                    for(String keyValPair :entry.getValue()){
+                        String parName = "";
+                        String parVal = "";
+                        int equalsPos = keyValPair.indexOf("=");
+                        parName = keyValPair.substring(0, equalsPos);
+                        parVal = keyValPair.substring(equalsPos+1);
+                        reqURI.setParameter(parName, parVal);
+                        if(logger.isDebugEnabled()) {
+                            logger.debug("ReqURI pars ="+parName+"="+parVal+" equalsPos="+equalsPos+" keyValPair="+keyValPair);
+                        }
+                    }
+
+                    message.setRequestURI(reqURI);
+                    if(logger.isDebugEnabled()) {
+                        logger.debug("ReqURI="+reqURI.toString()+" msgReqURI="+message.getRequestURI());
+                    }
+                }
+                if(logger.isDebugEnabled()) {
+                    logger.debug("headerName="+headerName+" headerVal="+message.getHeader(headerName));
+                }
+            }
+        }
     }
 
     private boolean proxyOut(SipServletRequest request, Client client, String toUser, String toHost, String toHostIpAddress, String toPort, SipURI outboundIntf, String proxyURI, String proxyUsername, String proxyPassword, SipURI from, SipURI to, boolean callToSipUri) throws UnknownHostException {
@@ -992,7 +1067,10 @@ public final class CallManager extends UntypedActor {
             try {
                 formatedPhone = phoneNumberUtil.format(phoneNumberUtil.parse(phone, "US"), PhoneNumberFormat.E164);
             } catch (NumberParseException e) {
-                logger.error("Exception when try to format : " + e);
+                if (logger.isInfoEnabled()) {
+                    String msg = String.format("Problem while trying to format number %s, exception %s ",phone, e);
+                    logger.info(msg);
+                }
             }
         }
         if (formatedPhone == null) {
@@ -1664,7 +1742,7 @@ public final class CallManager extends UntypedActor {
     }
 
     private void outboundToPstn(final CreateCall request, final ActorRef sender) throws ServletParseException {
-        final String uri = (!request.getOutboundProxy().isEmpty()) ? request.getOutboundProxy() : activeProxy;
+        final String uri = (request.getOutboundProxy()!= null && (!request.getOutboundProxy().isEmpty())) ? request.getOutboundProxy() : activeProxy;
         SipURI outboundIntf = null;
         SipURI from = null;
         SipURI to = null;
@@ -1724,11 +1802,15 @@ public final class CallManager extends UntypedActor {
 
 
     private void outboundToSip(final CreateCall request, final ActorRef sender) throws ServletParseException {
+        final String uri = (request.getOutboundProxy()!= null && (!request.getOutboundProxy().isEmpty())) ? request.getOutboundProxy() : "";
         SipURI outboundIntf = null;
         SipURI from = null;
-        SipURI to = null;
+        SipURI to = (SipURI) sipFactory.createURI(request.to());
 
-        to = (SipURI) sipFactory.createURI(request.to());
+        if(!uri.isEmpty()){
+            to.setHost(uri);
+        }
+
         String transport = (to.getTransportParam() != null) ? to.getTransportParam() : "udp";
         outboundIntf = outboundInterface(transport);
         if (request.from() == null) {

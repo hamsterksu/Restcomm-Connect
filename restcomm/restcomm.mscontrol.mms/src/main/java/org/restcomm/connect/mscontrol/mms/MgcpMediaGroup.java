@@ -20,14 +20,15 @@
 
 package org.restcomm.connect.mscontrol.mms;
 
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
+import akka.actor.ActorRef;
+import akka.event.Logging;
+import akka.event.LoggingAdapter;
+import jain.protocol.ip.mgcp.message.parms.ConnectionIdentifier;
+import jain.protocol.ip.mgcp.message.parms.ConnectionMode;
 import jain.protocol.ip.mgcp.pkg.MgcpEvent;
+import org.apache.commons.configuration.Configuration;
 import org.mobicents.protocols.mgcp.jain.pkg.AUMgcpEvent;
+import org.restcomm.connect.commons.dao.CollectedResult;
 import org.restcomm.connect.commons.fsm.Action;
 import org.restcomm.connect.commons.fsm.FiniteStateMachine;
 import org.restcomm.connect.commons.fsm.State;
@@ -35,6 +36,7 @@ import org.restcomm.connect.commons.fsm.Transition;
 import org.restcomm.connect.commons.patterns.Observe;
 import org.restcomm.connect.commons.patterns.Observing;
 import org.restcomm.connect.commons.patterns.StopObserving;
+import org.restcomm.connect.mgcp.AsrwgsSignal;
 import org.restcomm.connect.mgcp.CreateIvrEndpoint;
 import org.restcomm.connect.mgcp.CreateLink;
 import org.restcomm.connect.mgcp.DestroyEndpoint;
@@ -63,16 +65,15 @@ import org.restcomm.connect.mscontrol.api.messages.StartMediaGroup;
 import org.restcomm.connect.mscontrol.api.messages.Stop;
 import org.restcomm.connect.mscontrol.api.messages.StopMediaGroup;
 
-import akka.actor.ActorRef;
-import akka.event.Logging;
-import akka.event.LoggingAdapter;
-import jain.protocol.ip.mgcp.message.parms.ConnectionIdentifier;
-import jain.protocol.ip.mgcp.message.parms.ConnectionMode;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * @author quintana.thomas@gmail.com (Thomas Quintana)
  * @author maria.farooq@telestax.com (Maria Farooq)
- *
  */
 public class MgcpMediaGroup extends MediaGroup {
     private final LoggingAdapter logger = Logging.getLogger(getContext().system(), this);
@@ -96,6 +97,8 @@ public class MgcpMediaGroup extends MediaGroup {
 
     // FSM.
     protected FiniteStateMachine fsm;
+    // The user specific configuration.
+    Configuration configuration = null;
 
     // MGCP runtime stuff.
     protected final ActorRef gateway;
@@ -134,11 +137,11 @@ public class MgcpMediaGroup extends MediaGroup {
     public MgcpMediaGroup(final ActorRef gateway, final MediaSession session, final ActorRef endpoint, final String ivrEndpointName, final ConnectionIdentifier ivrConnectionIdentifier, final String primaryEndpointId, final String secondaryEndpointId) {
         super();
         final ActorRef source = self();
-        if(logger.isDebugEnabled())
-            logger.debug("MgcpMediaGroup: "+ source.path() + " gateway: "+gateway
-                    + " session: "+session + " endpoint: "+endpoint + " ivrEndpointName: "
-                    + ivrEndpointName + " ivrConnectionIdentifier: "+ivrConnectionIdentifier
-                    + " primaryEndpointId: "+primaryEndpointId+" secondaryEndpointId: "
+        if (logger.isDebugEnabled())
+            logger.debug("MgcpMediaGroup: " + source.path() + " gateway: " + gateway
+                    + " session: " + session + " endpoint: " + endpoint + " ivrEndpointName: "
+                    + ivrEndpointName + " ivrConnectionIdentifier: " + ivrConnectionIdentifier
+                    + " primaryEndpointId: " + primaryEndpointId + " secondaryEndpointId: "
                     + secondaryEndpointId);
         // Initialize the states for the FSM.
         uninitialized = new State("uninitialized", null, null);
@@ -197,20 +200,30 @@ public class MgcpMediaGroup extends MediaGroup {
     protected void collect(final Object message) {
         final ActorRef self = self();
         final Collect request = (Collect) message;
-        final PlayCollect.Builder builder = PlayCollect.builder();
-        for (final URI prompt : request.prompts()) {
-            builder.addPrompt(prompt);
+
+        Object signal;
+        if (request.type() == Collect.Type.DTMF) {
+            final PlayCollect.Builder builder = PlayCollect.builder();
+            for (final URI prompt : request.prompts()) {
+                builder.addPrompt(prompt);
+            }
+            builder.setClearDigitBuffer(true);
+            builder.setDigitPattern(request.pattern());
+            builder.setFirstDigitTimer(request.timeout());
+            builder.setInterDigitTimer(request.timeout());
+            builder.setEndInputKey(request.endInputKey());
+            builder.setMaxNumberOfDigits(request.numberOfDigits());
+            signal = builder.build();
+            this.lastEvent = AUMgcpEvent.aupc;
+        } else {
+            this.lastEvent = AsrwgsSignal.REQUEST_ASRWGS;
+            signal = new AsrwgsSignal(request.getDriver(), request.lang(), request.prompts(), request.endInputKey(), request.timeout(), request.timeout(),
+                    request.timeout(), request.getHints());
         }
-        builder.setClearDigitBuffer(true);
-        builder.setDigitPattern(request.pattern());
-        builder.setFirstDigitTimer(request.timeout());
-        builder.setInterDigitTimer(request.timeout());
-        builder.setEndInputKey(request.endInputKey());
-        builder.setMaxNumberOfDigits(request.numberOfDigits());
-        this.lastEvent = AUMgcpEvent.aupc;
+
         stop(lastEvent);
         this.originator = sender();
-        ivr.tell(builder.build(), self);
+        ivr.tell(signal, self);
         ivrInUse = true;
     }
 
@@ -229,17 +242,14 @@ public class MgcpMediaGroup extends MediaGroup {
 
     @SuppressWarnings("unchecked")
     protected void notification(final Object message) {
-        final IvrEndpointResponse<String> response = (IvrEndpointResponse<String>) message;
+        final IvrEndpointResponse response = (IvrEndpointResponse) message;
         final ActorRef self = self();
-        MediaGroupResponse<String> event = null;
+        MediaGroupResponse<CollectedResult> event;
         if (response.succeeded()) {
-            event = new MediaGroupResponse<String>(response.get());
+            event = new MediaGroupResponse<>(response.get());
         } else {
-            event = new MediaGroupResponse<String>(response.cause(), response.error());
+            event = new MediaGroupResponse<>(response.cause(), response.error());
         }
-        // for (final ActorRef observer : observers) {
-        // observer.tell(event, self);
-        // }
         if (originator != null)
             this.originator.tell(event, self);
         ivrInUse = false;
@@ -262,10 +272,10 @@ public class MgcpMediaGroup extends MediaGroup {
         final State state = fsm.state();
         final ActorRef sender = sender();
 
-        if(logger.isInfoEnabled()) {
+        if (logger.isInfoEnabled()) {
             logger.info("********** Media Group " + self().path() + " Current State: \"" + state.toString());
             logger.info("********** Media Group " + self().path() + " Processing Message: \"" + klass.getName() + " sender : "
-                + sender.getClass());
+                    + sender.getClass());
         }
 
         if (Observe.class.equals(klass)) {
@@ -279,9 +289,9 @@ public class MgcpMediaGroup extends MediaGroup {
                 sender().tell(new MediaGroupStateChanged(MediaGroupStateChanged.State.INACTIVE, ivr, ivrConnectionIdentifier), self());
             }
         } else if (StartMediaGroup.class.equals(klass)) {
-            if(logger.isInfoEnabled()) {
+            if (logger.isInfoEnabled()) {
                 logger.info("MediaGroup: " + self().path() + " got StartMediaGroup from: " + sender().path() + " endpoint: "
-                    + endpoint.path() + " isTerminated: " + endpoint.isTerminated());
+                        + endpoint.path() + " isTerminated: " + endpoint.isTerminated());
             }
             fsm.transition(message, acquiringIvr);
         } else if (Join.class.equals(klass)) {
@@ -329,7 +339,7 @@ public class MgcpMediaGroup extends MediaGroup {
             onEndpointStateChanged((EndpointStateChanged) message, self(), sender);
         } else if (active.equals(state)) {
             if (Play.class.equals(klass)) {
-                if(logger.isDebugEnabled())
+                if (logger.isDebugEnabled())
                     logger.debug("MgcpMediaGroup: got a request to play something at conference ivr..");
                 play(message);
             } else if (Collect.class.equals(klass)) {
@@ -423,17 +433,17 @@ public class MgcpMediaGroup extends MediaGroup {
         @Override
         public void execute(final Object message) throws Exception {
             if (ivr != null && !ivr.isTerminated()) {
-                if(logger.isInfoEnabled()) {
+                if (logger.isInfoEnabled()) {
                     logger.info("MediaGroup :" + self().path()
-                        + " got request to create ivr endpoint, will stop the existing one first: " + ivr.path());
+                            + " got request to create ivr endpoint, will stop the existing one first: " + ivr.path());
                 }
                 gateway.tell(new DestroyEndpoint(ivr), null);
                 getContext().stop(ivr);
                 ivr = null;
             }
-            if(logger.isInfoEnabled()) {
+            if (logger.isInfoEnabled()) {
                 logger.info("MediaGroup :" + self().path() + " state: " + fsm.state().toString() + " session: " + session.id()
-                    + " will ask to get IvrEndpoint: "+ivrEndpointName);
+                        + " will ask to get IvrEndpoint: " + ivrEndpointName);
             }
             gateway.tell(new CreateIvrEndpoint(session, ivrEndpointName), source);
         }
@@ -451,16 +461,16 @@ public class MgcpMediaGroup extends MediaGroup {
             ivr = response.get();
             ivr.tell(new Observe(source), source);
             if (link != null && !link.isTerminated()) {
-                if(logger.isInfoEnabled()) {
+                if (logger.isInfoEnabled()) {
                     logger.info("MediaGroup :" + self().path()
-                        + " got request to create link endpoint, will stop the existing one first: " + link.path());
+                            + " got request to create link endpoint, will stop the existing one first: " + link.path());
                 }
                 gateway.tell(new DestroyLink(link), null);
                 getContext().stop(link);
             }
-            if(logger.isInfoEnabled()) {
+            if (logger.isInfoEnabled()) {
                 logger.info("MediaGroup :" + self().path() + " state: " + fsm.state().toString() + " session: " + session.id()
-                    + " ivr endpoint: " + ivr.path() + " will ask to get Link");
+                        + " ivr endpoint: " + ivr.path() + " will ask to get Link");
             }
             gateway.tell(new CreateLink(session, ivrConnectionIdentifier), source);
         }
@@ -477,16 +487,16 @@ public class MgcpMediaGroup extends MediaGroup {
             final MediaGatewayResponse<ActorRef> response = (MediaGatewayResponse<ActorRef>) message;
             link = response.get();
             if (endpoint == null)
-                if(logger.isInfoEnabled()) {
+                if (logger.isInfoEnabled()) {
                     logger.info("MediaGroup :" + self().path() + " state: " + fsm.state().toString() + " session: " + session.id()
-                        + " link: " + link.path() + " endpoint is null will have exception");
+                            + " link: " + link.path() + " endpoint is null will have exception");
                 }
             link.tell(new Observe(source), source);
             link.tell(new InitializeLink(endpoint, ivr), source);
-            if(logger.isInfoEnabled()) {
+            if (logger.isInfoEnabled()) {
                 logger.info("MediaGroup :" + self().path() + " state: " + fsm.state().toString() + " session: " + session.id()
-                    + " link: " + link.path() + " endpoint: " + endpoint.path()
-                    + " initializeLink sent, endpoint isTerminated: " + endpoint.isTerminated());
+                        + " link: " + link.path() + " endpoint: " + endpoint.path()
+                        + " initializeLink sent, endpoint isTerminated: " + endpoint.isTerminated());
             }
         }
     }
@@ -498,9 +508,9 @@ public class MgcpMediaGroup extends MediaGroup {
 
         @Override
         public void execute(final Object message) throws Exception {
-            if(logger.isInfoEnabled()) {
+            if (logger.isInfoEnabled()) {
                 logger.info("MediaGroup :" + self().path() + " state: " + fsm.state().toString() + " session: " + session.id()
-                    + " link: " + link.path() + " will ask to open Link with primaryEndpointId: "+ primaryEndpointId+" secondaryEndpointId: "+secondaryEndpointId);
+                        + " link: " + link.path() + " will ask to open Link with primaryEndpointId: " + primaryEndpointId + " secondaryEndpointId: " + secondaryEndpointId);
             }
             link.tell(new OpenLink(ConnectionMode.SendRecv, primaryEndpointId, secondaryEndpointId), source);
         }
@@ -637,31 +647,31 @@ public class MgcpMediaGroup extends MediaGroup {
     @Override
     public void postStop() {
         if (internalLinkEndpoint != null) {
-            if(logger.isInfoEnabled()) {
+            if (logger.isInfoEnabled()) {
                 logger.info("MediaGroup: " + self().path() + " at postStop, about to stop intenalLinkEndpoint: "
-                    + internalLinkEndpoint.path() + " sender: " + sender().path());
+                        + internalLinkEndpoint.path() + " sender: " + sender().path());
             }
             gateway.tell(new DestroyEndpoint(internalLinkEndpoint), null);
             getContext().stop(internalLinkEndpoint);
             internalLinkEndpoint = null;
         }
         if (ivr != null) {
-            if(logger.isInfoEnabled()) {
+            if (logger.isInfoEnabled()) {
                 logger.info("MediaGroup :" + self().path() + " at postStop, about to stop ivr endpoint :" + ivr.path());
             }
             gateway.tell(new DestroyEndpoint(ivr), null);
             getContext().stop(ivr);
             ivr = null;
         }
-        if(link != null) {
-            if(logger.isInfoEnabled()) {
+        if (link != null) {
+            if (logger.isInfoEnabled()) {
                 logger.info("MediaGroup :" + self().path() + " at postStop, about to stop link :" + link.path());
             }
             getContext().stop(link);
             link = null;
         }
-        if(internalLink != null) {
-            if(logger.isInfoEnabled()) {
+        if (internalLink != null) {
+            if (logger.isInfoEnabled()) {
                 logger.info("MediaGroup :" + self().path() + " at postStop, about to stop internal link :" + internalLink.path());
             }
             getContext().stop(link);

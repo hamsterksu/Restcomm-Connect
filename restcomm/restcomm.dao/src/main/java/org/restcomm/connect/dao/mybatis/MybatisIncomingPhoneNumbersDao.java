@@ -103,7 +103,7 @@ public final class MybatisIncomingPhoneNumbersDao implements IncomingPhoneNumber
                String phoneRegexPattern = null;
                try {
                    if (logger.isInfoEnabled()) {
-                       final String msg = String.format("Found %d Regex IncomingPhone numbers. Will try to match a REGEX for incoming phone number for phoneNumber : " + listPhones.size(), inboundPhoneNumber);
+                       final String msg = String.format("Found %d Regex IncomingPhone numbers. Will try to match a REGEX for incoming phone number for phoneNumber : %s", listPhones.size(), inboundPhoneNumber);
                        logger.info(msg);
                    }
                    for (IncomingPhoneNumber listPhone : listPhones){
@@ -252,6 +252,15 @@ public final class MybatisIncomingPhoneNumbersDao implements IncomingPhoneNumber
         }
     }
 
+    @Override
+    public Integer getTotalIncomingPhoneNumbers(IncomingPhoneNumberFilter filter) {
+
+        try (final SqlSession session = sessions.openSession();) {
+            final Integer total = session.selectOne(namespace + "getTotalIncomingPhoneNumbersByUsingFilters", filter);
+            return total;
+        }
+    }
+
     private IncomingPhoneNumber toIncomingPhoneNumber(final Map<String, Object> map) {
         final Sid sid = DaoUtils.readSid(map.get("sid"));
         final DateTime dateCreated = DaoUtils.readDateTime(map.get("date_created"));
@@ -343,4 +352,5 @@ public final class MybatisIncomingPhoneNumbersDao implements IncomingPhoneNumber
         map.put("cost", incomingPhoneNumber.getCost());
         return map;
     }
+
 }
