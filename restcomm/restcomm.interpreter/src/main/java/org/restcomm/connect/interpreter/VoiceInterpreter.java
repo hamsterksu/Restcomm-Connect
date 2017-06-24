@@ -145,7 +145,7 @@ import static akka.pattern.Patterns.ask;
  * @author pavel.slegr@telestax.com
  * @author maria.farooq@telestax.com
  */
-public final class VoiceInterpreter extends BaseVoiceInterpreter {
+public class VoiceInterpreter extends BaseVoiceInterpreter {
     // Logger.
     private final LoggingAdapter logger = Logging.getLogger(getContext().system(), this);
 
@@ -1794,7 +1794,7 @@ public final class VoiceInterpreter extends BaseVoiceInterpreter {
                 source.tell(verb, source);
                 return;
             } else if (downloadingRcml.equals(state) || downloadingFallbackRcml.equals(state) || redirecting.equals(state)
-                    || finishGathering.equals(state) || finishRecording.equals(state) || sendingSms.equals(state)
+                    || continuousGathering.equals(state) || finishGathering.equals(state) || finishRecording.equals(state) || sendingSms.equals(state)
                     || finishDialing.equals(state) || finishConferencing.equals(state) || is(forking)) {
                 response = ((DownloaderResponse) message).get();
                 if (parser != null) {
