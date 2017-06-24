@@ -202,9 +202,8 @@ public class IvrAsrEndpointTest {
                         ReturnCode.Transaction_Executed_Normally);
                 sender.tell(response, self);
                 System.out.println(response.toString());
-                // Send the notification.
 
-                // TODO: extend test - 100, 101, timeout, "100 + endOfKey"
+                // Send the notification.
                 Notify notify = createNotify(request, (int) transactionIdPool.get(), AUMgcpEvent.auoc.withParm("rc=101 asrr=" + ASR_RESULT_TEXT_HEX));
                 sender.tell(notify, self);
 

@@ -1529,6 +1529,18 @@ public abstract class BaseVoiceInterpreter extends UntypedActor {
         @Override
         public void execute(final Object message) throws Exception {
 
+            // check mandatory attribute partialResultCallback
+            Attribute resultCallbackAttr = verb.attribute(GatherAttributes.ATTRIBUTE_PARTIAL_RESULT_CALLBACK);
+            final NotificationsDao notifications = storage.getNotificationsDao();
+            if (resultCallbackAttr == null) {
+                final Notification notification = notification(ERROR_NOTIFICATION, 11101, "partialResultCallback attribute is null");
+                notifications.addNotification(notification);
+                sendMail(notification);
+                final StopInterpreter stop = new StopInterpreter();
+                source.tell(stop, source);
+                throw new IllegalStateException("Attribute partialResultCallback is null");
+            }
+
             // parse attribute "input"
             Attribute typeAttr = verb.attribute(GatherAttributes.ATTRIBUTE_INPUT);
             Collect.Type defaultType = Collect.Type.DTMF;
@@ -1548,7 +1560,6 @@ public abstract class BaseVoiceInterpreter extends UntypedActor {
                 logger.warning("'{}' attribute is null or empty", GatherAttributes.ATTRIBUTE_HINTS);
             }
 
-            final NotificationsDao notifications = storage.getNotificationsDao();
             // Parse finish on key.
             finishOnKey = finishOnKey(verb);
             // Parse the number of digits.
@@ -1582,7 +1593,7 @@ public abstract class BaseVoiceInterpreter extends UntypedActor {
             }
 
             // Start gathering.
-            String defaultDriver = configuration.subset("runtime-settings").getString("default-driver");
+            String defaultDriver = configuration.subset("runtime-settings").getString("mg-asr-drivers[@default]");
             final Collect collect = new Collect(defaultDriver, type, gatherPrompts, null, timeout, finishOnKey, numberOfDigits, lang, hints);
             call.tell(collect, source);
             // Some clean up.
@@ -1641,7 +1652,7 @@ public abstract class BaseVoiceInterpreter extends UntypedActor {
                 sendMail(notification);
                 final StopInterpreter stop = new StopInterpreter();
                 source.tell(stop, source);
-                throw new IllegalStateException("Attribute Action is null, CallbackGatherAction failed");
+                logger.error("CallbackAttribute is null, CallbackGatherAction failed");
             }
             String action = callbackAttr.value();
             if (action == null || action.isEmpty()) {
@@ -1650,7 +1661,7 @@ public abstract class BaseVoiceInterpreter extends UntypedActor {
                 sendMail(notification);
                 final StopInterpreter stop = new StopInterpreter();
                 source.tell(stop, source);
-                throw new IllegalStateException("Action url is null or empty");
+                logger.error("Action url is null or empty");
             }
             URI target;
             try {
