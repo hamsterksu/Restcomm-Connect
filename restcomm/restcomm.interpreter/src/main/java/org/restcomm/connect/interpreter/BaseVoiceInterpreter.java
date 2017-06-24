@@ -539,7 +539,7 @@ public abstract class BaseVoiceInterpreter extends UntypedActor {
         return cache;
     }
 
-    ActorRef cache(final String path, final String uri) {
+    protected ActorRef cache(final String path, final String uri) {
         final Props props = new Props(new UntypedActorFactory() {
             private static final long serialVersionUID = 1L;
             @Override
@@ -550,7 +550,7 @@ public abstract class BaseVoiceInterpreter extends UntypedActor {
         return system.actorOf(props);
     }
 
-    ActorRef downloader() {
+    protected ActorRef downloader() {
         final Props props = new Props(new UntypedActorFactory() {
             private static final long serialVersionUID = 1L;
 
@@ -817,7 +817,6 @@ public abstract class BaseVoiceInterpreter extends UntypedActor {
 
     ActorRef tts(final Configuration ttsConf) {
         final String classpath = ttsConf.getString("[@class]");
-
         final Props props = new Props(new UntypedActorFactory() {
             private static final long serialVersionUID = 1L;
 
