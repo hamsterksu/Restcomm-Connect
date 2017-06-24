@@ -20,14 +20,15 @@
 
 package org.restcomm.connect.mscontrol.mms;
 
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
+import akka.actor.ActorRef;
+import akka.event.Logging;
+import akka.event.LoggingAdapter;
+import jain.protocol.ip.mgcp.message.parms.ConnectionIdentifier;
+import jain.protocol.ip.mgcp.message.parms.ConnectionMode;
 import jain.protocol.ip.mgcp.pkg.MgcpEvent;
+import org.apache.commons.configuration.Configuration;
 import org.mobicents.protocols.mgcp.jain.pkg.AUMgcpEvent;
+import org.restcomm.connect.commons.dao.CollectedResult;
 import org.restcomm.connect.commons.fsm.Action;
 import org.restcomm.connect.commons.fsm.FiniteStateMachine;
 import org.restcomm.connect.commons.fsm.State;
@@ -35,6 +36,7 @@ import org.restcomm.connect.commons.fsm.Transition;
 import org.restcomm.connect.commons.patterns.Observe;
 import org.restcomm.connect.commons.patterns.Observing;
 import org.restcomm.connect.commons.patterns.StopObserving;
+import org.restcomm.connect.mgcp.AsrwgsSignal;
 import org.restcomm.connect.mgcp.CreateIvrEndpoint;
 import org.restcomm.connect.mgcp.CreateLink;
 import org.restcomm.connect.mgcp.DestroyEndpoint;
@@ -63,16 +65,15 @@ import org.restcomm.connect.mscontrol.api.messages.StartMediaGroup;
 import org.restcomm.connect.mscontrol.api.messages.Stop;
 import org.restcomm.connect.mscontrol.api.messages.StopMediaGroup;
 
-import akka.actor.ActorRef;
-import akka.event.Logging;
-import akka.event.LoggingAdapter;
-import jain.protocol.ip.mgcp.message.parms.ConnectionIdentifier;
-import jain.protocol.ip.mgcp.message.parms.ConnectionMode;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * @author quintana.thomas@gmail.com (Thomas Quintana)
  * @author maria.farooq@telestax.com (Maria Farooq)
- *
  */
 public class MgcpMediaGroup extends MediaGroup {
     private final LoggingAdapter logger = Logging.getLogger(getContext().system(), this);
@@ -96,6 +97,8 @@ public class MgcpMediaGroup extends MediaGroup {
 
     // FSM.
     protected FiniteStateMachine fsm;
+    // The user specific configuration.
+    Configuration configuration = null;
 
     // MGCP runtime stuff.
     protected final ActorRef gateway;
@@ -197,20 +200,30 @@ public class MgcpMediaGroup extends MediaGroup {
     protected void collect(final Object message) {
         final ActorRef self = self();
         final Collect request = (Collect) message;
-        final PlayCollect.Builder builder = PlayCollect.builder();
-        for (final URI prompt : request.prompts()) {
-            builder.addPrompt(prompt);
+
+        Object signal;
+        if (request.type() == Collect.Type.DTMF) {
+            final PlayCollect.Builder builder = PlayCollect.builder();
+            for (final URI prompt : request.prompts()) {
+                builder.addPrompt(prompt);
+            }
+            builder.setClearDigitBuffer(true);
+            builder.setDigitPattern(request.pattern());
+            builder.setFirstDigitTimer(request.timeout());
+            builder.setInterDigitTimer(request.timeout());
+            builder.setEndInputKey(request.endInputKey());
+            builder.setMaxNumberOfDigits(request.numberOfDigits());
+            signal = builder.build();
+            this.lastEvent = AUMgcpEvent.aupc;
+        } else {
+            this.lastEvent = AsrwgsSignal.REQUEST_ASRWGS;
+            signal = new AsrwgsSignal(request.getDriver(), request.lang(), request.prompts(), request.endInputKey(), request.timeout(), request.timeout(),
+                    request.timeout(), request.getHints());
         }
-        builder.setClearDigitBuffer(true);
-        builder.setDigitPattern(request.pattern());
-        builder.setFirstDigitTimer(request.timeout());
-        builder.setInterDigitTimer(request.timeout());
-        builder.setEndInputKey(request.endInputKey());
-        builder.setMaxNumberOfDigits(request.numberOfDigits());
-        this.lastEvent = AUMgcpEvent.aupc;
+
         stop(lastEvent);
         this.originator = sender();
-        ivr.tell(builder.build(), self);
+        ivr.tell(signal, self);
         ivrInUse = true;
     }
 
@@ -229,20 +242,19 @@ public class MgcpMediaGroup extends MediaGroup {
 
     @SuppressWarnings("unchecked")
     protected void notification(final Object message) {
-        final IvrEndpointResponse<String> response = (IvrEndpointResponse<String>) message;
+        final IvrEndpointResponse response = (IvrEndpointResponse) message;
         final ActorRef self = self();
-        MediaGroupResponse<String> event = null;
+        MediaGroupResponse<CollectedResult> event;
         if (response.succeeded()) {
-            event = new MediaGroupResponse<String>(response.get());
+            event = new MediaGroupResponse<>(response.get());
         } else {
-            event = new MediaGroupResponse<String>(response.cause(), response.error());
+            event = new MediaGroupResponse<>(response.cause(), response.error());
         }
-        // for (final ActorRef observer : observers) {
-        // observer.tell(event, self);
-        // }
         if (originator != null)
             this.originator.tell(event, self);
-        ivrInUse = false;
+        if (!response.get().isPartial()) {
+            ivrInUse = false;
+        }
     }
 
     protected void observe(final Object message) {
