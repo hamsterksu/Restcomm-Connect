@@ -50,7 +50,6 @@ public class MockedActor {
                 }
             }
 
-            System.err.println("!!! MockedActor." + name + ": send " + response);
             sender.tell(response, self);
             return;
         }
