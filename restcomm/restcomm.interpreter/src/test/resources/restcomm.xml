@@ -27,8 +27,10 @@
         <conference-entry-audio>beep.wav</conference-entry-audio>
         <conference-exit-audio>alert.wav</conference-exit-audio>
 
-        <!-- Speech to text default driver -->
-        <default-driver>google-api</default-driver>
+        <!-- Speech to text drivers -->
+        <mg-asr-drivers default="google">
+            <driver>google</driver>
+        </mg-asr-drivers>
 
         <!-- Cache settings. -->
         <cache-path>${restcomm:home}/cache</cache-path>
