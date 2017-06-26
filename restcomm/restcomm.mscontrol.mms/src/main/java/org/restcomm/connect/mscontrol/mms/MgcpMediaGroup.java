@@ -200,6 +200,7 @@ public class MgcpMediaGroup extends MediaGroup {
     protected void collect(final Object message) {
         final ActorRef self = self();
         final Collect request = (Collect) message;
+        stop(lastEvent);
 
         Object signal;
         if (request.type() == Collect.Type.DTMF) {
@@ -220,8 +221,6 @@ public class MgcpMediaGroup extends MediaGroup {
             signal = new AsrwgsSignal(request.getDriver(), request.lang(), request.prompts(), request.endInputKey(), request.timeout(), request.timeout(),
                     request.timeout(), request.getHints());
         }
-
-        stop(lastEvent);
         this.originator = sender();
         ivr.tell(signal, self);
         ivrInUse = true;
@@ -233,8 +232,8 @@ public class MgcpMediaGroup extends MediaGroup {
         final List<URI> uris = request.uris();
         final int iterations = request.iterations();
         final org.restcomm.connect.mgcp.Play play = new org.restcomm.connect.mgcp.Play(uris, iterations);
-        this.lastEvent = AUMgcpEvent.aupa;
         stop(lastEvent);
+        this.lastEvent = AUMgcpEvent.aupa;
         this.originator = sender();
         ivr.tell(play, self);
         ivrInUse = true;
@@ -394,8 +393,8 @@ public class MgcpMediaGroup extends MediaGroup {
             builder.setEndInputKey("null");
         }
         builder.setRecordingId(request.destination());
-        this.lastEvent = AUMgcpEvent.aupr;
         stop(lastEvent);
+        this.lastEvent = AUMgcpEvent.aupr;
         this.originator = sender();
         ivr.tell(builder.build(), self);
         ivrInUse = true;
